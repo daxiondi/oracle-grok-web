@@ -77,13 +77,15 @@ export function createManusWebExecutor(): (
       const responseCount = async (): Promise<number> => {
         const count = await evaluate<number>(`(() => {
           const nodes = Array.from(document.querySelectorAll(${responseSelector}));
+          const preferred = Array.from(document.querySelectorAll('.manus-markdown'));
+          const candidates = preferred.length > 0 ? preferred : nodes;
           const isAssistant = (node) => [
             node.getAttribute('data-message-role'), node.getAttribute('data-sender'),
             node.getAttribute('data-role'), node.getAttribute('aria-label'),
             typeof node.className === 'string' ? node.className : '',
           ].filter(Boolean).join(' ').toLowerCase().match(/assistant|bot|agent/);
-          const assistants = nodes.filter(isAssistant);
-          return assistants.length > 0 ? assistants.length : nodes.length;
+          const assistants = candidates.filter(isAssistant);
+          return assistants.length > 0 ? assistants.length : candidates.length;
         })()`);
         return count ?? 0;
       };
@@ -155,25 +157,29 @@ export function createManusWebExecutor(): (
         }
         throw new Error(`Timed out waiting for Manus attachments: ${attachmentNames.join(", ")}`);
       };
-      const runPrompt = async (prompt: string, includeAttachments: boolean) =>
-        runProviderDomFlow(manusDomProvider, {
+      const runPrompt = async (prompt: string, includeAttachments: boolean) => {
+        const state: Record<string, unknown> = {
+          inputTimeoutMs: config.inputTimeoutMs,
+          timeoutMs: config.timeoutMs,
+          attachments: includeAttachments
+            ? (options.attachments ?? []).map((attachment) => ({
+                path: attachment.path,
+                name: path.basename(attachment.path),
+              }))
+            : [],
+        };
+        return runProviderDomFlow(manusDomProvider, {
           prompt,
           evaluate,
           delay,
           log: logger,
-          state: {
-            inputTimeoutMs: config.inputTimeoutMs,
-            timeoutMs: config.timeoutMs,
-            responseCountBeforeSubmit: await responseCount(),
-            attachments: includeAttachments
-              ? (options.attachments ?? []).map((attachment) => ({
-                  path: attachment.path,
-                  name: path.basename(attachment.path),
-                }))
-              : [],
+          state,
+          beforeSubmit: async () => {
+            state.responseCountBeforeSubmit = await responseCount();
           },
           uploadAttachments,
         });
+      };
 
       let result = await runPrompt(options.prompt, true);
       for (const followUp of options.followUpPrompts ?? []) {

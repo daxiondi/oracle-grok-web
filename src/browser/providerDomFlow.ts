@@ -9,6 +9,8 @@ export interface ProviderDomFlowContext {
   log?: BrowserLogger;
   state?: Record<string, unknown>;
   uploadAttachments?: (attachments: Array<{ path: string; name: string }>) => Promise<void>;
+  /** Capture provider-specific baseline state after the composer is ready and before typing. */
+  beforeSubmit?: () => Promise<void>;
 }
 
 export interface ProviderDomResponse {
@@ -39,6 +41,7 @@ export async function runProviderSubmissionFlow(
   if (adapter.selectMode) {
     await adapter.selectMode(ctx);
   }
+  await ctx.beforeSubmit?.();
   await adapter.typePrompt(ctx);
   await adapter.submitPrompt(ctx);
 }

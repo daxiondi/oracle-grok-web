@@ -39,6 +39,7 @@ export const MANUS_SELECTORS = {
     '[class*="stop-button"]',
   ],
   response: [
+    ".manus-markdown",
     '[data-message-role="assistant"]',
     '[data-sender="assistant"]',
     '[data-role="assistant"]',
@@ -50,6 +51,7 @@ export const MANUS_SELECTORS = {
     '[class*="message"]',
   ],
   responseContent: [
+    ".manus-markdown",
     "[data-message-content]",
     "[data-content]",
     ".markdown-content",
@@ -212,13 +214,15 @@ async function waitForResponse(
     const raw = await ctx.evaluate<string>(
       `(() => {
         const all = Array.from(document.querySelectorAll(${response}));
+        const preferred = Array.from(document.querySelectorAll('.manus-markdown'));
+        const candidates = preferred.length > 0 ? preferred : all;
         const marker = (node) => [
           node.getAttribute('data-message-role'), node.getAttribute('data-sender'),
           node.getAttribute('data-role'), node.getAttribute('aria-label'),
           typeof node.className === 'string' ? node.className : '',
         ].filter(Boolean).join(' ').toLowerCase();
-        const assistants = all.filter((node) => /assistant|bot|agent/.test(marker(node)));
-        const turns = assistants.length > 0 ? assistants : all;
+        const assistants = candidates.filter((node) => /assistant|bot|agent/.test(marker(node)));
+        const turns = assistants.length > 0 ? assistants : candidates;
         const body = (document.body?.innerText || '').toLowerCase();
         const loginDialog = Array.from(document.querySelectorAll('[role="dialog"], [class*="modal"]'))
           .some((node) => /sign in|log in|continue with google|登录/.test((node.innerText || '').toLowerCase()));
