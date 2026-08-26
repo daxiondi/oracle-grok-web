@@ -14,6 +14,19 @@ oracle --engine browser \
 
 The Chrome profile must already be signed in to Manus. `--remote-chrome` can be omitted when `--browser-attach-running` can discover the local DevTools endpoint. Manus currently uses local attached-browser modes; `oracle serve --remote-host` is not supported by this provider.
 
+To continue an existing Manus conversation directly, pass its `/app/<id>` URL through the existing browser URL option:
+
+```bash
+oracle --engine browser \
+  --model manus \
+  --browser-attach-running \
+  --remote-chrome 127.0.0.1:9222 \
+  --chatgpt-url https://manus.im/app/<conversation-id> \
+  -p "继续这个任务，并先复述当前结论"
+```
+
+The option is named `--chatgpt-url` for CLI compatibility, but Manus runs validate and use only `manus.im` URLs. A completed Manus run also stores its conversation URL, so `oracle --followup <session-id>` can reopen that same `/app/<id>` conversation.
+
 ## Files and long context
 
 Manus web runs accept the same `--file` inputs and `--browser-attachments auto|never|always` policy as other browser runs:

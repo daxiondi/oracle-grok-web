@@ -388,7 +388,7 @@ program
   .addOption(new Option("--message <text>", "Alias for --prompt.").hideHelp())
   .option(
     "--followup <sessionId|responseId>",
-    "Continue a stored ChatGPT browser conversation or an OpenAI/Azure Responses API run.",
+    "Continue a stored browser conversation (ChatGPT, Grok, or Manus) or an OpenAI/Azure Responses API run.",
   )
   .option(
     "--followup-model <model>",

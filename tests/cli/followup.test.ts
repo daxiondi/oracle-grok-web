@@ -94,7 +94,7 @@ describe("browser follow-up resolution", () => {
     const store = { readSession: vi.fn(async () => metadata) };
 
     await expect(resolveBrowserFollowupReference("missing-url", store)).rejects.toThrow(
-      /does not contain a ChatGPT conversation URL.*oracle status/s,
+      /does not contain a recoverable provider conversation URL.*oracle status/s,
     );
   });
 
@@ -123,7 +123,7 @@ describe("browser follow-up resolution", () => {
 
     const store = { readSession: vi.fn(async () => metadata) };
     await expect(resolveBrowserFollowupReference("external-url", store)).rejects.toThrow(
-      /does not contain a ChatGPT conversation URL/s,
+      /does not contain a recoverable provider conversation URL/s,
     );
   });
 
@@ -142,7 +142,7 @@ describe("browser follow-up resolution", () => {
 
     const store = { readSession: vi.fn(async () => metadata) };
     await expect(resolveBrowserFollowupReference("project-shell", store)).rejects.toThrow(
-      /does not contain a ChatGPT conversation URL/s,
+      /does not contain a recoverable provider conversation URL/s,
     );
   });
 
@@ -172,5 +172,66 @@ describe("browser follow-up resolution", () => {
       };
       expect(resolveBrowserResumeConversationUrl(metadata)).toBeNull();
     }
+  });
+
+  test("resolves a Manus conversation URL from runtime metadata", () => {
+    const metadata: SessionMetadata = {
+      ...baseMetadata,
+      mode: "browser",
+      model: "manus",
+      browser: {
+        config: { url: "https://manus.im/" },
+        runtime: { tabUrl: "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5" },
+      },
+    };
+
+    expect(resolveBrowserResumeConversationUrl(metadata)).toBe(
+      "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5",
+    );
+  });
+
+  test("preserves Manus as the model for stored browser follow-up", async () => {
+    const metadata: SessionMetadata = {
+      ...baseMetadata,
+      id: "manus-session",
+      mode: "browser",
+      model: "manus",
+      options: { model: "manus" },
+      browser: {
+        config: {
+          attachRunning: true,
+          remoteChrome: { host: "127.0.0.1", port: 9222 },
+          url: "https://manus.im/",
+        },
+        runtime: { tabUrl: "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5" },
+      },
+    };
+    const store = { readSession: vi.fn(async () => metadata) };
+
+    await expect(resolveBrowserFollowupReference("manus-session", store)).resolves.toEqual({
+      sessionId: "manus-session",
+      resumeConversationUrl: "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5",
+      model: "manus",
+      browserConfig: {
+        attachRunning: true,
+        remoteChrome: { host: "127.0.0.1", port: 9222 },
+        url: "https://manus.im/",
+        browserTabRef: null,
+        resumeConversationUrl: "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5",
+        researchMode: "off",
+        archiveConversations: "never",
+      },
+    });
+  });
+
+  test("rejects a non-Manus host for a Manus session", () => {
+    const metadata: SessionMetadata = {
+      ...baseMetadata,
+      mode: "browser",
+      model: "manus",
+      browser: { runtime: { tabUrl: "https://evil.example.com/app/not-manus" } },
+    };
+
+    expect(resolveBrowserResumeConversationUrl(metadata)).toBeNull();
   });
 });

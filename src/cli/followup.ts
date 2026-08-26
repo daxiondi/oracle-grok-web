@@ -5,6 +5,7 @@ import { resolveRecoveryUrl } from "../browser/recoverConversation.js";
 import { isRecoverableChatGptConversationUrl } from "../browser/reattachability.js";
 import { DEFAULT_MODEL } from "../oracle/config.js";
 import type { ModelName } from "../oracle/types.js";
+import { isManusSiteUrl, isRecoverableManusConversationUrl } from "../manus-web/url.js";
 
 export interface BrowserFollowupResolution {
   sessionId: string;
@@ -18,7 +19,7 @@ export interface FollowupSessionReader {
 }
 
 /**
- * Resolve the ChatGPT conversation URL to reopen for a browser follow-up.
+ * Resolve the provider conversation URL to reopen for a browser follow-up.
  *
  * Reuses the same recoverable-URL gate as conversation recovery
  * (`resolveRecoveryUrl`): prefer the post-harvest URL, fall back to the
@@ -33,6 +34,16 @@ export function resolveBrowserResumeConversationUrl(
   metadata: SessionMetadata,
   fallbackBaseUrl = CHATGPT_URL,
 ): string | null {
+  if (isManusBrowserSession(metadata)) {
+    const candidates = [
+      metadata.browser?.harvest?.url,
+      metadata.browser?.runtime?.tabUrl,
+      metadata.browser?.config?.resumeConversationUrl,
+      metadata.browser?.config?.url,
+      metadata.browser?.config?.chatgptUrl,
+    ];
+    return candidates.find((candidate) => isRecoverableManusConversationUrl(candidate)) ?? null;
+  }
   const gatedUrl = resolveRecoveryUrl(metadata);
   if (gatedUrl) {
     return gatedUrl;
@@ -47,6 +58,21 @@ export function resolveBrowserResumeConversationUrl(
     return built;
   }
   return null;
+}
+
+function isManusBrowserSession(metadata: SessionMetadata): boolean {
+  const modelCandidates = [metadata.options?.model, metadata.model];
+  if (modelCandidates.some((candidate) => candidate?.trim().toLowerCase() === "manus")) {
+    return true;
+  }
+  const urlCandidates = [
+    metadata.browser?.harvest?.url,
+    metadata.browser?.runtime?.tabUrl,
+    metadata.browser?.config?.resumeConversationUrl,
+    metadata.browser?.config?.url,
+    metadata.browser?.config?.chatgptUrl,
+  ];
+  return urlCandidates.some((candidate) => isManusSiteUrl(candidate));
 }
 
 export async function resolveBrowserFollowupReference(
@@ -73,7 +99,7 @@ export async function resolveBrowserFollowupReference(
   const resumeConversationUrl = resolveBrowserResumeConversationUrl(metadata);
   if (!resumeConversationUrl) {
     throw new Error(
-      `Session ${trimmed} is a browser session but does not contain a ChatGPT conversation URL. Run "oracle status --hours 72 --limit 20" to list recent sessions.`,
+      `Session ${trimmed} is a browser session but does not contain a recoverable provider conversation URL. Run "oracle status --hours 72 --limit 20" to list recent sessions.`,
     );
   }
   const parentBrowserConfig = metadata.options?.browserConfig ?? metadata.browser?.config;
@@ -82,8 +108,9 @@ export async function resolveBrowserFollowupReference(
   }
   const storedModel = metadata.options?.model ?? metadata.model;
   const model =
-    typeof storedModel === "string" && storedModel.startsWith("gpt-")
-      ? (storedModel as ModelName)
+    typeof storedModel === "string" &&
+    (storedModel.toLowerCase() === "manus" || storedModel.startsWith("gpt-"))
+      ? ((storedModel.toLowerCase() === "manus" ? "manus" : storedModel) as ModelName)
       : DEFAULT_MODEL;
   return {
     sessionId: metadata.id,

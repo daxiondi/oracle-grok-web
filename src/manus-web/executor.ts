@@ -5,11 +5,26 @@ import { manusDomProvider, MANUS_SELECTORS } from "../browser/providers/manusDom
 import type { BrowserLogger, BrowserRunOptions, BrowserRunResult } from "../browser/types.js";
 import { delay } from "../browser/utils.js";
 import path from "node:path";
+import { isManusSiteUrl, isRecoverableManusConversationUrl } from "./url.js";
 
 export const MANUS_URL = "https://manus.im/";
 
 function estimateTokenCount(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+function resolveTargetUrl(config: BrowserRunOptions["config"]): string {
+  const resumeUrl = config?.resumeConversationUrl?.trim();
+  if (resumeUrl) {
+    if (!isRecoverableManusConversationUrl(resumeUrl)) {
+      throw new Error(
+        "Invalid Manus conversation URL. Expected an https://manus.im/app/<conversation-id> link.",
+      );
+    }
+    return resumeUrl;
+  }
+  const configuredUrl = config?.url ?? config?.chatgptUrl;
+  return isManusSiteUrl(configuredUrl) ? configuredUrl! : MANUS_URL;
 }
 
 export function createManusWebExecutor(): (
@@ -37,7 +52,7 @@ export function createManusWebExecutor(): (
     const remoteChrome = config.remoteChrome ?? attached;
     if (!remoteChrome) throw new Error("Unable to resolve the attached Chrome endpoint.");
     const { host, port } = remoteChrome;
-    const targetUrl = config.resumeConversationUrl ?? MANUS_URL;
+    const targetUrl = resolveTargetUrl(config);
     logger("[manus-web] Opening an isolated Manus tab in the attached Chrome session.");
     const connection = await connectWithNewTab(port, logger, targetUrl, host, {
       fallbackToDefault: false,

@@ -80,6 +80,89 @@ describe("Manus web executor", () => {
     expect(closeTab).not.toHaveBeenCalled();
   });
 
+  it("opens an explicit Manus conversation URL for a follow-up run", async () => {
+    const evaluate = vi.fn(async ({ expression }: { expression: string }) => {
+      if (expression.includes("const nodes = Array.from")) return { result: { value: 0 } };
+      if (expression.includes("ready:")) return { result: { value: { ready: true } } };
+      if (expression.includes("const value =")) return { result: { value: "typed" } };
+      if (expression.includes("const button = Array.from")) return { result: { value: "clicked" } };
+      if (expression.includes("const all = Array.from")) {
+        return { result: { value: JSON.stringify({ status: "idle", text: "follow-up done" }) } };
+      }
+      if (expression.includes("window.location.href")) {
+        return {
+          result: { value: "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5" },
+        };
+      }
+      return { result: { value: null } };
+    });
+    connectWithNewTab.mockResolvedValue({
+      client: createClient(evaluate),
+      targetId: "manus-follow-up-target",
+    });
+
+    const { createManusWebExecutor } = await import("../../src/manus-web/executor.js");
+    const result = await createManusWebExecutor()({
+      prompt: "Continue the existing task",
+      config: {
+        remoteChrome: { host: "127.0.0.1", port: 9333 },
+        resumeConversationUrl: "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5",
+      },
+    });
+
+    expect(connectWithNewTab).toHaveBeenCalledWith(
+      9333,
+      expect.any(Function),
+      "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5",
+      "127.0.0.1",
+      expect.objectContaining({ fallbackToDefault: false }),
+    );
+    expect(result.tabUrl).toBe("https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5");
+  });
+
+  it("uses a configured Manus URL and rejects an invalid resume URL", async () => {
+    const evaluate = vi.fn(async ({ expression }: { expression: string }) => {
+      if (expression.includes("const nodes = Array.from")) return { result: { value: 0 } };
+      if (expression.includes("ready:")) return { result: { value: { ready: true } } };
+      if (expression.includes("const value =")) return { result: { value: "typed" } };
+      if (expression.includes("const button = Array.from")) return { result: { value: "clicked" } };
+      if (expression.includes("const all = Array.from")) {
+        return { result: { value: JSON.stringify({ status: "idle", text: "done" }) } };
+      }
+      return { result: { value: null } };
+    });
+    connectWithNewTab.mockResolvedValue({
+      client: createClient(evaluate),
+      targetId: "manus-configured-target",
+    });
+
+    const { createManusWebExecutor } = await import("../../src/manus-web/executor.js");
+    await createManusWebExecutor()({
+      prompt: "Use this conversation",
+      config: {
+        remoteChrome: { host: "127.0.0.1", port: 9333 },
+        url: "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5",
+      },
+    });
+    expect(connectWithNewTab).toHaveBeenCalledWith(
+      9333,
+      expect.any(Function),
+      "https://manus.im/app/j5Lk2cHyXhhSMcLUHlDmO5",
+      "127.0.0.1",
+      expect.objectContaining({ fallbackToDefault: false }),
+    );
+
+    await expect(
+      createManusWebExecutor()({
+        prompt: "Reject this",
+        config: {
+          remoteChrome: { host: "127.0.0.1", port: 9333 },
+          resumeConversationUrl: "https://chatgpt.com/c/not-manus",
+        },
+      }),
+    ).rejects.toThrow(/Invalid Manus conversation URL/);
+  });
+
   it("uses an attached running Chrome profile and closes the tab when requested", async () => {
     resolveAttachRunningConnection.mockResolvedValue({
       host: "127.0.0.1",
