@@ -24,6 +24,15 @@ describe("buildBrowserConfig", () => {
     });
   });
 
+  test("keeps Manus as a browser provider target", async () => {
+    const config = await buildBrowserConfig({ model: "manus" });
+    expect(config).toMatchObject({
+      desiredModel: "Manus",
+      modelStrategy: "select",
+      researchMode: "off",
+    });
+  });
+
   test("maps gpt-5.4 browser runs to Thinking 5.4", async () => {
     const config = await buildBrowserConfig({ model: "gpt-5.4" });
     expect(config.desiredModel).toBe("Thinking 5.4");

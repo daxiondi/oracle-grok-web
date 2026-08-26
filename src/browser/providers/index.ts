@@ -4,3 +4,4 @@ export {
   GEMINI_DEEP_THINK_SELECTORS,
 } from "./geminiDeepThinkDomProvider.js";
 export { grokDomProvider, GROK_SELECTORS } from "./grokDomProvider.js";
+export { manusDomProvider, MANUS_SELECTORS } from "./manusDomProvider.js";

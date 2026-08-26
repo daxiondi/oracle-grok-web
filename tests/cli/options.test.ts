@@ -238,6 +238,8 @@ describe("resolveApiModel", () => {
     expect(resolveApiModel("Gemini 3.1 Pro")).toBe("gemini-3.1-pro");
     expect(resolveApiModel("grok")).toBe("grok-4.1");
     expect(resolveApiModel("Grok 4.1")).toBe("grok-4.1");
+    expect(resolveApiModel("manus")).toBe("manus");
+    expect(resolveApiModel("manus-web")).toBe("manus");
   });
 
   test("rejects codex max until API is available", () => {
@@ -370,6 +372,11 @@ describe("inferModelFromLabel", () => {
     expect(inferModelFromLabel("grok")).toBe("grok-4.1");
     expect(inferModelFromLabel("Grok 4.1")).toBe("grok-4.1");
     expect(inferModelFromLabel("Grok-4-1")).toBe("grok-4.1");
+  });
+
+  test("infers Manus web aliases", () => {
+    expect(inferModelFromLabel("manus")).toBe("manus");
+    expect(inferModelFromLabel("manus-web")).toBe("manus");
   });
 
   test("falls back to gpt-5.5-pro when label empty and to gpt-5.2 for other ambiguous strings", () => {

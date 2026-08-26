@@ -439,7 +439,7 @@ program
   .option("-s, --slug <words>", "Custom session slug (3-5 words).")
   .option(
     "-m, --model <model>",
-    "Model to target (gpt-5.5-pro default). GPT-5.6 aliases gpt-5.6 and gpt-5.6-sol work with the OpenAI API or ChatGPT browser. Browser mode also supports current GPT-5.5/GPT-5.4 targets and legacy Pro aliases; retired GPT-5.2 base/Instant/Thinking aliases are API-only. Other API targets include gpt-5.1-codex, gpt-5.2, gpt-5.2-instant, Gemini, Claude, and custom model IDs.",
+    "Model to target (gpt-5.5-pro default). GPT-5.6 aliases gpt-5.6 and gpt-5.6-sol work with the OpenAI API or ChatGPT browser. Browser mode also supports current GPT-5.5/GPT-5.4 targets, Grok web, Manus web, and legacy Pro aliases; retired GPT-5.2 base/Instant/Thinking aliases are API-only. Other API targets include gpt-5.1-codex, gpt-5.2, gpt-5.2-instant, Gemini, Claude, and custom model IDs.",
     normalizeModelOption,
   )
   .addOption(
@@ -469,7 +469,7 @@ program
   .addOption(
     new Option(
       "-e, --engine <mode>",
-      "Execution engine (api | browser). Browser engine: GPT models automate ChatGPT; Gemini uses gemini.google.com; Grok uses an attached grok.com Chrome session. If omitted, oracle picks api when OPENAI_API_KEY is set, otherwise browser.",
+      "Execution engine (api | browser). Browser engine: GPT models automate ChatGPT; Gemini uses gemini.google.com; Grok uses grok.com; Manus uses manus.im, all through an attached Chrome session. If omitted, oracle picks api when OPENAI_API_KEY is set, otherwise browser.",
     ).choices(["api", "browser"]),
   )
   .addOption(
@@ -1902,7 +1902,9 @@ async function runRootCommand(options: CliOptions): Promise<void> {
     providerMode !== "auto" || hasExplicitAzureOption(optionUsesDefault);
   const envEnginePreference = (process.env.ORACLE_ENGINE ?? "").trim().toLowerCase();
   const explicitApiEngineRequested =
-    options.engine === "api" || (!options.engine && envEnginePreference === "api");
+    options.engine === "api" ||
+    (!options.engine && envEnginePreference === "api") ||
+    (!options.engine && !envEnginePreference && userConfig.engine === "api");
   const configBrowserEngineRequested =
     userConfig.engine === "browser" && !explicitApiEngineRequested && !explicitApiProviderRequested;
   let engine: EngineMode = resolveEngine({
@@ -1950,10 +1952,14 @@ async function runRootCommand(options: CliOptions): Promise<void> {
   const isCodex = primaryModelCandidate.startsWith("gpt-5.1-codex");
   const isClaude = primaryModelCandidate.startsWith("claude");
   const isGrok = primaryModelCandidate.startsWith("grok");
+  const isManus = primaryModelCandidate === "manus";
   const userForcedBrowser = options.browser || options.engine === "browser";
-  const browserExplicitlyRequested = browserEngineRequested;
+  const browserExplicitlyRequested = browserEngineRequested || isManus;
   const isBrowserCompatible = (model: string) =>
-    model.startsWith("gpt-") || model.startsWith("gemini") || model.startsWith("grok");
+    model.startsWith("gpt-") ||
+    model.startsWith("gemini") ||
+    model.startsWith("grok") ||
+    model === "manus";
   const hasNonBrowserCompatibleTarget =
     normalizedMultiModels.length > 0
       ? normalizedMultiModels.some((model) => !isBrowserCompatible(model))
@@ -1962,6 +1968,24 @@ async function runRootCommand(options: CliOptions): Promise<void> {
     throw new Error(
       "Browser engine only supports GPT, Gemini, and Grok models. Re-run with --engine api for Claude or other models.",
     );
+  }
+  if (normalizedMultiModels.includes("manus")) {
+    throw new Error(
+      "Manus is browser-only and cannot be combined with --models. Run --model manus instead.",
+    );
+  }
+  if (isManus && explicitApiEngineRequested) {
+    throw new Error(
+      "Manus is browser-only. Remove --engine api (and ORACLE_ENGINE=api) and use an attached Chrome session.",
+    );
+  }
+  if (isManus && explicitApiProviderRequested) {
+    throw new Error(
+      "Manus is browser-only and does not use API providers. Remove --provider/--azure options and use an attached Chrome session.",
+    );
+  }
+  if (isManus) {
+    engine = "browser";
   }
   if (engine === "browser" && hasNonBrowserCompatibleTarget) {
     engine = "api";
@@ -2130,6 +2154,11 @@ async function runRootCommand(options: CliOptions): Promise<void> {
       "Grok web mode does not support --remote-host yet. Use --remote-chrome or --browser-attach-running.",
     );
   }
+  if (remoteHost && activeModel === "manus") {
+    throw new Error(
+      "Manus web mode does not support --remote-host yet. Use --remote-chrome or --browser-attach-running.",
+    );
+  }
   if (options.reasoningMode && engine !== "api") {
     throw new Error("--reasoning-mode requires --engine api.");
   }
@@ -2287,6 +2316,10 @@ async function runRootCommand(options: CliOptions): Promise<void> {
     const { createGrokWebExecutor } = await import("../src/grok-web/index.js");
     browserDeps = { executeBrowser: createGrokWebExecutor() };
     console.log(chalk.dim("Using Grok web client for browser automation"));
+  } else if (browserConfig && activeModel === "manus") {
+    const { createManusWebExecutor } = await import("../src/manus-web/index.js");
+    browserDeps = { executeBrowser: createManusWebExecutor() };
+    console.log(chalk.dim("Using Manus web client for browser automation"));
   }
   const remoteExecutionActive = Boolean(browserDeps);
 
@@ -2660,6 +2693,11 @@ async function restartSession(sessionId: string, options: RestartCommandOptions)
       "Grok web mode does not support --remote-host yet. Use --remote-chrome or --browser-attach-running.",
     );
   }
+  if (remoteHost && runOptions.model === "manus") {
+    throw new Error(
+      "Manus web mode does not support --remote-host yet. Use --remote-chrome or --browser-attach-running.",
+    );
+  }
   if (remoteHost && waitPreference === false) {
     console.log(chalk.dim("Remote browser runs require --wait; ignoring --no-wait."));
     waitPreference = true;
@@ -2692,6 +2730,10 @@ async function restartSession(sessionId: string, options: RestartCommandOptions)
     const { createGrokWebExecutor } = await import("../src/grok-web/index.js");
     browserDeps = { executeBrowser: createGrokWebExecutor() };
     console.log(chalk.dim("Using Grok web client for browser automation"));
+  } else if (browserConfig && runOptions.model === "manus") {
+    const { createManusWebExecutor } = await import("../src/manus-web/index.js");
+    browserDeps = { executeBrowser: createManusWebExecutor() };
+    console.log(chalk.dim("Using Manus web client for browser automation"));
   }
   const remoteExecutionActive = Boolean(browserDeps);
 

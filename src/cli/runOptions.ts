@@ -48,7 +48,10 @@ export function resolveRunOptionsFromConfig({
   });
   const envEnginePreference = (env.ORACLE_ENGINE ?? "").trim().toLowerCase();
   const browserRequested = engine === "browser";
-  const explicitApiEngineRequested = engine === "api" || (!engine && envEnginePreference === "api");
+  const explicitApiEngineRequested =
+    engine === "api" ||
+    (!engine && envEnginePreference === "api") ||
+    (!engine && !envEnginePreference && userConfig?.engine === "api");
   const browserConfigured = userConfig?.engine === "browser" && !explicitApiEngineRequested;
   const envBrowserConfigured = !engine && envEnginePreference === "browser";
   const browserEngineRequested = browserRequested || browserConfigured || envBrowserConfigured;
@@ -69,6 +72,7 @@ export function resolveRunOptionsFromConfig({
   const isCodex = apiModel.startsWith("gpt-5.1-codex");
   const isClaude = apiModel.startsWith("claude");
   const isGrok = apiModel.startsWith("grok");
+  const isManus = apiModel === "manus";
 
   const engineWasBrowser = resolvedEngine === "browser";
   const allModels: ModelName[] =
@@ -78,9 +82,15 @@ export function resolveRunOptionsFromConfig({
   const browserCompatibilityModels: ModelName[] =
     normalizedRequestedModels.length > 0 ? allModels : [browserModel];
   const isBrowserCompatible = (m: string) =>
-    m.startsWith("gpt-") || m.startsWith("gemini") || m.startsWith("grok");
+    m.startsWith("gpt-") || m.startsWith("gemini") || m.startsWith("grok") || m === "manus";
   const hasNonBrowserCompatibleTarget =
     browserEngineRequested && browserCompatibilityModels.some((m) => !isBrowserCompatible(m));
+  if (normalizedRequestedModels.some((entry) => resolveApiModel(entry) === "manus")) {
+    throw new PromptValidationError(
+      "Manus is browser-only and cannot be combined with --models. Run it as a single --model manus browser session.",
+      { engine: "browser", models: allModels },
+    );
+  }
   if (hasNonBrowserCompatibleTarget) {
     throw new PromptValidationError(
       "Browser engine only supports GPT, Gemini, and Grok models. Re-run with --engine api for Claude or other models.",
@@ -96,8 +106,15 @@ export function resolveRunOptionsFromConfig({
   const grokAutoApi = isGrok && !browserEngineRequested;
   const engineCoercedToApi =
     engineWasBrowser && (isCodex || isClaude || grokAutoApi || azureAutoApi);
-  const fixedEngine: EngineMode =
-    isCodex || isClaude || grokAutoApi || azureAutoApi || normalizedRequestedModels.length > 0
+  if (isManus && explicitApiEngineRequested) {
+    throw new PromptValidationError(
+      "Manus is browser-only. Remove --engine api (and ORACLE_ENGINE=api) and use an attached Chrome session.",
+      { engine: "api", models: [apiModel] },
+    );
+  }
+  const fixedEngine: EngineMode = isManus
+    ? "browser"
+    : isCodex || isClaude || grokAutoApi || azureAutoApi || normalizedRequestedModels.length > 0
       ? "api"
       : resolvedEngine;
   // Browser runs use ChatGPT picker labels/aliases; API runs must keep API model ids intact.

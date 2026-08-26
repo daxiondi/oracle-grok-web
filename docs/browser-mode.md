@@ -1,12 +1,15 @@
 # Browser Mode
 
-Oracle’s `--engine browser` supports three different execution paths:
+Oracle’s `--engine browser` supports four different execution paths:
 
 - **ChatGPT launcher mode** (GPT-\* models): Oracle launches Chrome itself and drives the ChatGPT web UI over CDP.
 - **ChatGPT attach-running mode** (GPT-\* models): Oracle attaches to your already-running local Chrome session through Chrome’s local remote-debugging toggle, opens a dedicated tab, and leaves the browser process/profile alone.
 - **Gemini web mode** (Gemini models): talks directly to `gemini.google.com` using your signed-in Chrome cookies (no ChatGPT automation).
+- **Grok / Manus web mode** (`--model grok` or `--model manus`): opens an isolated tab in an already-running, signed-in Chrome session and drives the provider's web composer over CDP.
 
 If you’re running Gemini, also see `docs/gemini.md`.
+
+If you’re running Grok, see `docs/grok.md`; for Manus, see `docs/manus.md`.
 
 `oracle --engine browser` routes the assembled prompt bundle through the ChatGPT web UI instead of the Responses API. (Legacy `--browser` still maps to `--engine browser`, but it will be removed.) If you omit `--engine`, Oracle first honors `ORACLE_ENGINE`, then any `engine` value in the effective config, including project `.oracle/config.json` files layered over `~/.oracle/config.json`. It auto-picks API when `OPENAI_API_KEY` is available and falls back to browser otherwise. The CLI writes the same session metadata/logs as API runs, and by default pastes the payload into ChatGPT via a temporary Chrome profile (manual-login mode can reuse a persistent automation profile).
 

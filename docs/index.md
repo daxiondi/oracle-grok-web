@@ -30,7 +30,7 @@ oracle --followup <id> -p "Re-evaluate with this new context" --file "src/**/*.t
 
 ## What Oracle does
 
-- **One CLI to a stable of pro agents.** GPT-5.5 Pro (default), GPT-5.5, GPT-5.4 Pro, GPT-5.4, GPT-5.2 Pro, GPT-5.1 Pro, GPT-5.1 Codex, Gemini 3.1 Pro, Gemini 3.5 Flash, Gemini 3.1 Flash-Lite, Claude Sonnet 4.6, Claude Opus 4.1 — plus any OpenRouter id.
+- **One CLI to a stable of pro agents.** GPT-5.5 Pro (default), GPT-5.5, GPT-5.4 Pro, GPT-5.4, GPT-5.2 Pro, GPT-5.1 Pro, GPT-5.1 Codex, Gemini 3.1 Pro, Gemini 3.5 Flash, Gemini 3.1 Flash-Lite, Claude Sonnet 4.6, Claude Opus 4.1, plus Grok and Manus web sessions — plus any OpenRouter id.
 - **Engines, plural.** API mode for reliability, browser mode (Chrome over CDP) when you don't want to pay or want the Pro tier, `--render --copy` when neither is an option.
 - **Multi-model in one run.** Aggregate cost, token usage, and lineage across providers in a single command.
 - **Recoverable panels.** `doctor --providers`, `--preflight`, `--route`, and `--allow-partial` make provider/key failures clear without losing successful model output.
@@ -45,7 +45,7 @@ oracle --followup <id> -p "Re-evaluate with this new context" --file "src/**/*.t
 - **Trying it.** [Install](install.md) → [Quickstart](quickstart.md). Five minutes from `brew install` to your first answer.
 - **Choosing a model.** The [Mythical Pro Agents](mythical-pro-agents.md) lineup covers when to reach for GPT-5.5 Pro vs. Gemini 3.1 Pro vs. Claude Opus, and what each costs.
 - **Wiring up an agent.** [Agents](agents.md) covers Claude Code, Codex, Cursor, and the `oracle` skill. [MCP](mcp.md) plugs Oracle into any MCP-aware client.
-- **Driving ChatGPT without keys.** [Browser mode](browser-mode.md) walks through manual-login profiles, attach-running, remote browsers, and Deep Research.
+- **Driving web providers without keys.** [Browser mode](browser-mode.md) walks through ChatGPT, Gemini, Grok, and Manus browser sessions, including attach-running profiles and Deep Research.
 - **Long Pro runs.** [Sessions](sessions.md) and the [followup](followup.md) flow handle background runs, reattach, and lineage.
 
 ## Why "mythical pro agents"?

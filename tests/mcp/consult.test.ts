@@ -211,6 +211,21 @@ describe("summarizeModelRunsForConsult", () => {
     expect(config.cookieSync).toBe(process.platform !== "win32");
   });
 
+  test("targets Manus instead of ChatGPT for Manus browser consults", () => {
+    const config = buildConsultBrowserConfig({
+      userConfig: {},
+      env: {},
+      runModel: "manus",
+      inputModel: "manus",
+    });
+
+    expect(config).toMatchObject({
+      url: "https://manus.im/",
+      chatgptUrl: "https://manus.im/",
+      desiredModel: "Manus",
+    });
+  });
+
   test("lets explicit consult inputs override config defaults", () => {
     const config = buildConsultBrowserConfig({
       userConfig: {

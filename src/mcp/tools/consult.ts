@@ -66,7 +66,7 @@ const consultInputShape = {
     .enum(["api", "browser"])
     .optional()
     .describe(
-      "Execution engine. `api` uses OpenAI/other providers. `browser` automates the ChatGPT web UI (supports attachments and ChatGPT-only model labels). When omitted, Oracle follows CLI defaults: config/ORACLE_ENGINE first, then `api` when OPENAI_API_KEY is set, otherwise `browser`.",
+      "Execution engine. `api` uses OpenAI/other providers. `browser` automates ChatGPT, Gemini, Grok, or Manus web sessions (with provider-specific attachment support). When omitted, Oracle follows CLI defaults: config/ORACLE_ENGINE first, then `api` when OPENAI_API_KEY is set, otherwise `browser`.",
     ),
   browserModelLabel: z
     .string()
@@ -78,7 +78,7 @@ const consultInputShape = {
     .enum(["auto", "never", "always"])
     .optional()
     .describe(
-      'Browser-only: how to deliver `files`. Use "always" for real ChatGPT file uploads (including images/PDFs). Use "never" to paste file contents inline. "auto" chooses based on prompt size.',
+      'Browser-only: how to deliver `files`. Use "always" for real web-provider file uploads (including images/PDFs). Use "never" to paste file contents inline. "auto" chooses based on prompt size.',
     ),
   browserBundleFiles: z
     .boolean()
@@ -113,7 +113,7 @@ const consultInputShape = {
     .array(z.string())
     .optional()
     .describe(
-      "Browser-only: additional prompts to submit sequentially in the same ChatGPT conversation after the initial answer.",
+      "Browser-only: additional prompts to submit sequentially in the same provider conversation after the initial answer.",
     ),
   browserKeepBrowser: z
     .boolean()
@@ -343,7 +343,10 @@ export function buildConsultBrowserConfig({
   const desiredModelLabel = isChatGptModel
     ? mapModelToBrowserLabel(runModel)
     : resolveBrowserModelLabel(preferredLabel, runModel);
-  const configuredUrl = configuredBrowser.chatgptUrl ?? configuredBrowser.url ?? CHATGPT_URL;
+  const configuredUrl =
+    runModel === "manus"
+      ? "https://manus.im/"
+      : (configuredBrowser.chatgptUrl ?? configuredBrowser.url ?? CHATGPT_URL);
   const manualLogin = hasProfileDir
     ? true
     : (configuredBrowser.manualLogin ?? process.platform === "win32");
@@ -387,7 +390,9 @@ export function buildConsultDryRunResolved({
   }
   if (resolvedEngine === "browser") {
     guidance.push(
-      "Browser engine uses the signed-in ChatGPT profile; run dryRun:true before live use.",
+      runOptions.model === "manus"
+        ? "Manus web engine uses a signed-in local Chrome profile at manus.im; run dryRun:true before live use."
+        : "Browser engine uses the signed-in ChatGPT profile; run dryRun:true before live use.",
     );
     if (browserConfig?.manualLogin) {
       const profile = browserConfig.manualLoginProfileDir ?? "~/.oracle/browser-profile";
@@ -477,7 +482,9 @@ export function formatConsultDryRunResolved(details: ConsultDryRunResolved): str
       lines.push(`  browser profile: ${details.browser.profileDir}`);
     }
     if (details.browser.chatgptUrl) {
-      lines.push(`  ChatGPT URL: ${details.browser.chatgptUrl}`);
+      lines.push(
+        `  ${details.model === "manus" ? "Manus" : "ChatGPT"} URL: ${details.browser.chatgptUrl}`,
+      );
     }
     if (details.browser.imageOutputPath) {
       lines.push(`  image output: ${details.browser.imageOutputPath}`);
@@ -575,6 +582,14 @@ export async function runConsultTool(
       ),
     };
   }
+  if (resolvedEngine === "browser" && runOptions.model === "manus" && resolvedRemote.host) {
+    return {
+      isError: true,
+      content: textContent(
+        "Manus web mode requires a local attached Chrome session; oracle serve --remote-host is not supported for Manus.",
+      ),
+    };
+  }
 
   let browserConfig: BrowserSessionConfig | undefined;
   if (resolvedEngine === "browser") {
@@ -652,6 +667,9 @@ export async function runConsultTool(
         token: resolvedRemote.token,
       }),
     };
+  } else if (resolvedEngine === "browser" && runOptions.model === "manus") {
+    const { createManusWebExecutor } = await import("../../manus-web/index.js");
+    browserDeps = { executeBrowser: createManusWebExecutor() };
   }
 
   const notifications = resolveNotificationSettings({
