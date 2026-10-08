@@ -653,7 +653,7 @@ program
   .addOption(
     new Option(
       "--chatgpt-url <url>",
-      `Override the ChatGPT web URL (e.g., workspace/folder like https://chatgpt.com/g/.../project; default ${CHATGPT_URL}).`,
+      `Override the ChatGPT web URL (workspace/folder or https://chatgpt.com/dots/<id>; default ${CHATGPT_URL}).`,
     ),
   )
   .addOption(
@@ -2919,7 +2919,7 @@ function printDebugHelp(cliName: string): void {
   console.log("");
   console.log(chalk.bold("Browser Options"));
   printDebugOptionGroup([
-    ["--chatgpt-url <url>", "Override the ChatGPT web URL (workspace/folder targets)."],
+    ["--chatgpt-url <url>", "Override the ChatGPT web URL (workspace/folder or Dots targets)."],
     ["--browser-chrome-profile <name>", "Reuse cookies from a specific Chrome profile."],
     ["--browser-chrome-path <path>", "Point to a custom Chrome/Chromium binary."],
     ["--browser-cookie-path <path>", "Use a specific Chrome/Chromium cookie store file."],

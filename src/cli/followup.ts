@@ -6,6 +6,7 @@ import { isRecoverableChatGptConversationUrl } from "../browser/reattachability.
 import { DEFAULT_MODEL } from "../oracle/config.js";
 import type { ModelName } from "../oracle/types.js";
 import { isManusSiteUrl, isRecoverableManusConversationUrl } from "../manus-web/url.js";
+import { isDotsConversationUrl } from "../dots-web/url.js";
 
 export interface BrowserFollowupResolution {
   sessionId: string;
@@ -34,6 +35,16 @@ export function resolveBrowserResumeConversationUrl(
   metadata: SessionMetadata,
   fallbackBaseUrl = CHATGPT_URL,
 ): string | null {
+  const dotsUrl = [
+    metadata.browser?.harvest?.url,
+    metadata.browser?.runtime?.tabUrl,
+    metadata.browser?.config?.resumeConversationUrl,
+    metadata.browser?.config?.chatgptUrl,
+    metadata.browser?.config?.url,
+  ].find((candidate) => isDotsConversationUrl(candidate));
+  if (dotsUrl) {
+    return dotsUrl;
+  }
   if (isManusBrowserSession(metadata)) {
     const candidates = [
       metadata.browser?.harvest?.url,

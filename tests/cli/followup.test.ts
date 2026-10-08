@@ -13,6 +13,46 @@ const baseMetadata: SessionMetadata = {
 };
 
 describe("browser follow-up resolution", () => {
+  const dotsUrl = "https://chatgpt.com/dots/123e4567-e89b-12d3-a456-426614174000";
+
+  test("resumes the exact saved Dot without rebuilding a /c/ conversation", async () => {
+    const metadata: SessionMetadata = {
+      ...baseMetadata,
+      id: "dots-session",
+      mode: "browser",
+      model: "gpt-5.5-pro",
+      browser: {
+        config: { url: dotsUrl, modelStrategy: "current" },
+        runtime: { tabUrl: dotsUrl },
+        harvest: { url: dotsUrl },
+      },
+    };
+    expect(resolveBrowserResumeConversationUrl(metadata)).toBe(dotsUrl);
+    const result = await resolveBrowserFollowupReference("dots-session", {
+      readSession: async () => metadata,
+    });
+    expect(result?.resumeConversationUrl).toBe(dotsUrl);
+    expect(result?.browserConfig.modelStrategy).toBe("current");
+    expect(result?.browserConfig.resumeConversationUrl).toBe(dotsUrl);
+    expect(result?.browserConfig.archiveConversations).toBe("never");
+  });
+
+  test("rejects external or incomplete Dots links in saved metadata", () => {
+    for (const tabUrl of [
+      "https://evil.example/dots/123e4567-e89b-12d3-a456-426614174000",
+      "https://chatgpt.com/dots/",
+      "http://chatgpt.com/dots/123e4567-e89b-12d3-a456-426614174000",
+    ]) {
+      expect(
+        resolveBrowserResumeConversationUrl({
+          ...baseMetadata,
+          mode: "browser",
+          browser: { runtime: { tabUrl } },
+        }),
+      ).toBeNull();
+    }
+  });
+
   test("derives a resume URL from conversationId", () => {
     const metadata: SessionMetadata = {
       ...baseMetadata,
