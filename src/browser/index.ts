@@ -3,6 +3,9 @@ import path from "node:path";
 import os from "node:os";
 import net from "node:net";
 import { resolveBrowserConfig } from "./config.js";
+import { isDotsConversationUrl } from "../dots-web/url.js";
+import { formatBrowserTurnTranscript, type BrowserConversationTurn } from "./turnTranscript.js";
+export { formatBrowserTurnTranscript, type BrowserConversationTurn } from "./turnTranscript.js";
 import { copyChromeProfile } from "./profileCopy.js";
 import type {
   BrowserRunOptions,
@@ -623,44 +626,8 @@ export function isImageOnlyUiChromeText(text: string): boolean {
   );
 }
 
-export interface BrowserConversationTurn {
-  label: string;
-  prompt?: string;
-  answerText: string;
-  answerMarkdown: string;
-}
-
 function normalizeBrowserFollowUpPrompts(values: string[] | undefined): string[] {
   return (values ?? []).map((entry) => entry.trim()).filter(Boolean);
-}
-
-export function formatBrowserTurnTranscript(turns: BrowserConversationTurn[]): {
-  answerText: string;
-  answerMarkdown: string;
-} {
-  if (turns.length <= 1) {
-    const turn = turns[0];
-    return {
-      answerText: turn?.answerText ?? "",
-      answerMarkdown: turn?.answerMarkdown ?? turn?.answerText ?? "",
-    };
-  }
-
-  const answerMarkdown = turns
-    .map((turn, index) => {
-      const label = turn.label.trim() || `Turn ${index + 1}`;
-      const prompt = turn.prompt?.trim();
-      const promptBlock = prompt ? `\n\n### Prompt\n\n${prompt}` : "";
-      const answer = (turn.answerMarkdown || turn.answerText).trim() || "_No text captured._";
-      return `## ${label}${promptBlock}\n\n### Answer\n\n${answer}`;
-    })
-    .join("\n\n")
-    .trim();
-
-  return {
-    answerText: answerMarkdown,
-    answerMarkdown,
-  };
 }
 
 async function maybeArchiveCompletedConversation({
@@ -914,6 +881,13 @@ export async function runBrowserMode(options: BrowserRunOptions): Promise<Browse
   const promptText = options.prompt?.trim();
   if (!promptText) {
     throw new Error("Prompt text is required when using browser mode.");
+  }
+
+  const targetUrl =
+    options.config?.resumeConversationUrl ?? options.config?.chatgptUrl ?? options.config?.url;
+  if (isDotsConversationUrl(targetUrl)) {
+    const { createDotsWebExecutor } = await import("../dots-web/index.js");
+    return createDotsWebExecutor()(options);
   }
 
   const attachments: BrowserAttachment[] = options.attachments ?? [];

@@ -97,7 +97,7 @@ Notes:
 - `--browser-chrome-profile`, `--browser-chrome-path`: cookie source + binary override (defaults to the standard `"Default"` Chrome profile so existing ChatGPT logins carry over).
 - `--browser-cookie-path`: explicit path to the Chrome/Chromium/Edge `Cookies` SQLite DB. Handy when you launch a fork via `--browser-chrome-path` and want to copy its session cookies; see [docs/chromium-forks.md](chromium-forks.md) for examples.
 - `--browser-attach-running`: attach to a local already-running browser instead of launching Chrome directly. Defaults to `127.0.0.1:9222`; combine with `--remote-chrome <host:port>` to use a different local attach hint.
-- `--chatgpt-url`: override the ChatGPT base URL. Works with the root homepage (`https://chatgpt.com/`), Temporary Chat (`https://chatgpt.com/?temporary-chat=true`), **or** a specific workspace/folder link such as `https://chatgpt.com/g/.../project`. `--browser-url` stays as a hidden alias.
+- `--chatgpt-url`: override the ChatGPT base URL. Works with the root homepage (`https://chatgpt.com/`), Temporary Chat (`https://chatgpt.com/?temporary-chat=true`), a specific workspace/folder link such as `https://chatgpt.com/g/.../project`, or a Dots conversation (`https://chatgpt.com/dots/<id>`). Dots requires an attached signed-in Chrome and `--browser-model-strategy current`; see below. `--browser-url` stays as a hidden alias.
 - `--browser-timeout`, `--browser-input-timeout`, `--browser-attachment-timeout`: `1200s (20m)`/`60s`/`45s` defaults. The attachment timeout controls upload/readiness before clicking Send and can also be set with `ORACLE_BROWSER_ATTACHMENT_TIMEOUT` or `browser.attachmentTimeoutMs`. Durations accept `ms`, `s`, `m`, or `h` and can be chained (`1h2m10s`).
 - `--browser-recheck-delay`, `--browser-recheck-timeout`: after an assistant timeout, wait the delay, revisit the conversation, and retry capture (default recheck timeout 120s). Useful for Pro runs that finish later.
 - `--browser-reuse-wait`: wait for a shared Chrome profile (DevToolsActivePort) to appear before launching a new Chrome. Helps multiple parallel runs reuse the same Chromium instance.
@@ -113,9 +113,10 @@ Notes:
 - `--browser-research deep`: activate ChatGPT Deep Research before submitting the prompt. Use this for broad public-web research and final cited reports, not as a replacement for GPT-5.x Pro Heavy code review or pure reasoning.
 - `--browser-follow-up <prompt>`: submit another prompt in the same ChatGPT conversation after the initial answer. Repeat the flag for multi-turn reviews such as “challenge your recommendation”, “compare against this constraint”, then “give the final decision”. Deep Research has its own report lifecycle, so browser follow-ups are rejected when `--browser-research deep` is enabled.
 - `--followup <session-id>`: reopen the exact saved ChatGPT conversation from a completed browser session. Oracle inherits the parent browser profile, configuration, and model, then verifies the thread and prior turns before submitting.
-- `--browser-archive <auto|always|never>`: archive completed ChatGPT conversations after local artifacts are saved. The default `auto` archives only successful one-shot chats and skips project, Deep Research, multi-turn, failed, and incomplete sessions.
+- `--browser-archive <auto|always|never>`: archive completed ChatGPT conversations after local artifacts are saved. The default `auto` archives only successful one-shot chats and skips project, Deep Research, multi-turn, failed, and incomplete sessions. Dots is never archived; an explicit `always` request is rejected.
 - `--browser-port <port>` (alias: `--browser-debug-port`; env: `ORACLE_BROWSER_PORT`/`ORACLE_BROWSER_DEBUG_PORT`): pin the DevTools port (handy on WSL/Windows firewalls). When omitted, a random open port is chosen.
 - `ORACLE_CHATGPT_ACCOUNT_EMAIL`: exact saved-account email to select if ChatGPT shows its “Welcome back” account picker. Set it on the machine running browser automation. Oracle never logs the address; without it, Oracle selects only a single unambiguous saved account and fails closed when several are present.
+
 - `--browser-no-cookie-sync`, `--browser-manual-login` (persistent automation profile + user-driven login), `--browser-headless`, `--browser-hide-window`, `--browser-keep-browser`, and the global `-v/--verbose` flag for detailed automation logs.
 - `--copy-profile <dir>`: copy a signed-in Chrome user-data directory (e.g. `"$HOME/Library/Application Support/Google/Chrome"`) to a throwaway profile and run against it, reusing your live ChatGPT session with no manual sign-in. Oracle copies the profile recorded as active in `Local State`; pass `--browser-chrome-profile <name>` to select another direct child profile. The copy is launched with the real Keychain (not mocked) so its encrypted cookies decrypt, and is always deleted afterward—including setup/launch failures, incomplete captures, Cloudflare challenges, and interrupts. Copied-profile runs cannot be kept or reattached. Not compatible with `--browser-keep-browser`, `--browser-manual-login`, `--browser-attach-running`, `--remote-chrome`, or `--remote-host`, and fails fast if the required `Local State` cannot be copied. macOS/Linux; requires `rsync`.
 - `--browser-url`: override ChatGPT base URL if needed.
@@ -158,6 +159,53 @@ Notes:
     ```
 
 All options are persisted with the session so restarts (`oracle restart <id>`) reuse the same automation settings.
+
+### ChatGPT Dots
+
+Dots is a persistent assistant conversation with its own composer and message lifecycle.
+Pass the existing Dot URL; Oracle opens an isolated tab in your signed-in browser,
+sends the prompt, and captures only new Dot messages after the submitted user message.
+Requests to the same Dot are serialized on this machine because separate tabs still
+share one conversation. Avoid sending manual messages in that Dot while Oracle is
+waiting; a competing user message causes capture to stop instead of guessing which
+reply belongs to Oracle.
+
+```bash
+oracle --engine browser --remote-chrome 127.0.0.1:<geekez-port> \
+  --chatgpt-url 'https://chatgpt.com/dots/<dot-id>' \
+  --browser-model-strategy current --browser-archive never \
+  --prompt 'Review this proposal' --file proposal.md
+
+# With the local GeekEZ launcher, the connection and current-model strategy are automatic.
+oracle-geekez --chatgpt-url 'https://chatgpt.com/dots/<dot-id>' \
+  --prompt 'Review this proposal' --file proposal.md
+```
+
+`--browser-follow-up` sends subsequent prompts to the same Dot; `--followup <session-id>`
+reopens the saved Dot URL. Files use the usual inline/upload policy; force an actual
+upload with `--browser-attachments always`. Each submitted prompt receives a unique
+completion-marker instruction. Dots can send progress messages while tools are
+still running, so an idle typing indicator alone never completes an Oracle turn.
+Capture waits for the current turn's marker on the final reply's own last plain-text
+line and stable content before sending a follow-up. The marker is removed from the
+saved answer; the original user prompt is retained in the transcript. If the Dot
+does not emit that marker, the run times out instead of guessing completion.
+Navigation away from the intended Dot or competing user messages also abort capture.
+Failures preserve the tab and do not automatically resend the prompt.
+
+Dots does not expose a verifiable model picker. Oracle records model selection as
+unverified, even if the CLI model key contains `pro`. Model selection, thinking-time
+selection, Deep Research, image-output collection, and automatic pending-session
+reattachment use the ordinary ChatGPT workflow and are unsupported for Dots.
+The Dot's existing context, instructions, and connected tools remain active; a new
+Oracle invocation does not create a fresh or independent conversation.
+
+The workstation launcher `scripts/oracle-geekez.sh` routes Dots to the separate
+`~/.local/share/oracle-dots/current` runtime and keeps ordinary ChatGPT on the
+previously installed Oracle. Override the Dots executable with
+`ORACLE_GEEKEZ_DOTS_BIN`, or all calls with `ORACLE_GEEKEZ_ORACLE_BIN`. It discovers
+already-running GeekEZ profiles by their ChatGPT tabs and never starts a browser.
+If several profiles match, set `ORACLE_GEEKEZ_PORT` explicitly.
 
 ### Deep Research mode
 
